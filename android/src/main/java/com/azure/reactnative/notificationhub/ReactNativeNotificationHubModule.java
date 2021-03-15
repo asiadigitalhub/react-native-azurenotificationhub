@@ -6,14 +6,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
+import android.support.v4.content.LocalBroadcastManager;
 
-import androidx.core.app.NotificationManagerCompat;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
-
-import com.facebook.react.bridge.ActivityEventListener;
-import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.LifecycleEventListener;
-import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 
@@ -27,16 +23,23 @@ import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.UiThreadUtil;
+import com.microsoft.windowsazure.notifications.NotificationsManager;
 
-import static com.azure.reactnative.notificationhub.ReactNativeConstants.*;
+public class ReactNativeNotificationHubModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
+    public static final String NOTIF_REGISTER_AZURE_HUB_EVENT = "azureNotificationHubRegistered";
+    public static final String NOTIF_AZURE_HUB_REGISTRATION_ERROR_EVENT = "azureNotificationHubRegistrationError";
+    public static final String DEVICE_NOTIF_EVENT = "remoteNotificationReceived";
 
-public class ReactNativeNotificationHubModule extends ReactContextBaseJavaModule implements
-        ActivityEventListener, LifecycleEventListener {
     private static final int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
     private static final int NOTIFICATION_DELAY_ON_START = 3000;
 
-    private ReactApplicationContext mReactContext;
-    private LocalBroadcastReceiver mLocalBroadcastReceiver;
+    private static final String ERROR_INVALID_ARGUMENTS = "E_INVALID_ARGUMENTS";
+    private static final String ERROR_PLAY_SERVICES = "E_PLAY_SERVICES";
+    private static final String ERROR_NOTIFICATION_HUB = "E_NOTIFICATION_HUB";
+    private static final String ERROR_NOT_REGISTERED = "E_NOT_REGISTERED";
+
+    private ReactApplicationContext  mReactContext;
+    private LocalBroadcastReceiver  mLocalBroadcastReceiver;
 
     public ReactNativeNotificationHubModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -46,71 +49,34 @@ public class ReactNativeNotificationHubModule extends ReactContextBaseJavaModule
         localBroadcastManager.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(ReactNativeRegistrationIntentService.TAG));
         localBroadcastManager.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(ReactNativeNotificationsHandler.TAG));
         reactContext.addLifecycleEventListener(this);
-        reactContext.addActivityEventListener(this);
     }
 
     @Override
     public String getName() {
-        return AZURE_NOTIFICATION_HUB_NAME;
-    }
-
-    public void setIsForeground(boolean isForeground) {
-        ReactNativeNotificationHubUtil notificationHubUtil = ReactNativeNotificationHubUtil.getInstance();
-        notificationHubUtil.setAppIsForeground(isForeground);
-    }
-
-    public boolean getIsForeground() {
-        ReactNativeNotificationHubUtil notificationHubUtil = ReactNativeNotificationHubUtil.getInstance();
-        return notificationHubUtil.getAppIsForeground();
-    }
-
-    @ReactMethod
-    public void getInitialNotification(Promise promise) {
-        Activity activity = getCurrentActivity();
-        if (activity == null) {
-            promise.reject(ERROR_GET_INIT_NOTIFICATION, ERROR_ACTIVITY_IS_NULL);
-            return;
-        }
-
-        Intent intent = activity.getIntent();
-        if (intent != null && intent.getAction() != null) {
-            if (intent.getExtras() == null) {
-                // In certain cases while app cold launches, i.getExtras() returns null.
-                // Adding the check to make sure app won't crash,
-                // and still successfully launches from notification
-                promise.reject(ERROR_GET_INIT_NOTIFICATION, ERROR_INTENT_EXTRAS_IS_NULL);
-            } else {
-                promise.resolve(ReactNativeUtil.convertBundleToMap(intent.getExtras()));
-            }
-        } else {
-            promise.reject(ERROR_GET_INIT_NOTIFICATION, ERROR_ACTIVITY_INTENT_IS_NULL);
-        }
+        return "AzureNotificationHub";
     }
 
     @ReactMethod
     public void register(ReadableMap config, Promise promise) {
-        ReactNativeNotificationHubUtil notificationHubUtil = ReactNativeNotificationHubUtil.getInstance();
-        String connectionString = config.getString(KEY_REGISTRATION_CONNECTIONSTRING);
+        NotificationHubUtil notificationHubUtil = NotificationHubUtil.getInstance();
+        String connectionString = config.getString("connectionString");
         if (connectionString == null) {
-            promise.reject(ERROR_INVALID_ARGUMENTS, ERROR_INVALID_CONNECTION_STRING);
-            return;
+            promise.reject(ERROR_INVALID_ARGUMENTS, "Connection string cannot be null.");
         }
 
-        String hubName = config.getString(KEY_REGISTRATION_HUBNAME);
+        String hubName = config.getString("hubName");
         if (hubName == null) {
-            promise.reject(ERROR_INVALID_ARGUMENTS, ERROR_INVALID_HUBNAME);
-            return;
+            promise.reject(ERROR_INVALID_ARGUMENTS, "Hub name cannot be null.");
         }
 
-        String senderID = config.getString(KEY_REGISTRATION_SENDERID);
+        String senderID = config.getString("senderID");
         if (senderID == null) {
-            promise.reject(ERROR_INVALID_ARGUMENTS, ERROR_INVALID_SENDER_ID);
-            return;
+            promise.reject(ERROR_INVALID_ARGUMENTS, "Sender ID cannot be null.");
         }
 
         String[] tags = null;
-        if (config.hasKey(KEY_REGISTRATION_TAGS) && !config.isNull(KEY_REGISTRATION_TAGS)) {
-            ReadableArray tagsJson = config.getArray(KEY_REGISTRATION_TAGS);
+        if (config.hasKey("tags") && !config.isNull("tags")) {
+            ReadableArray tagsJson = config.getArray("tags");
             tags = new String[tagsJson.size()];
             for (int i = 0; i < tagsJson.size(); ++i) {
                 tags[i] = tagsJson.getString(i);
@@ -120,40 +86,7 @@ public class ReactNativeNotificationHubModule extends ReactContextBaseJavaModule
         ReactContext reactContext = getReactApplicationContext();
         notificationHubUtil.setConnectionString(reactContext, connectionString);
         notificationHubUtil.setHubName(reactContext, hubName);
-        notificationHubUtil.setSenderID(reactContext, senderID);
-        notificationHubUtil.setTemplated(reactContext, false);
         notificationHubUtil.setTags(reactContext, tags);
-
-        if (config.hasKey(KEY_REGISTRATION_CHANNELNAME)) {
-            String channelName = config.getString(KEY_REGISTRATION_CHANNELNAME);
-            notificationHubUtil.setChannelName(reactContext, channelName);
-        }
-
-        if (config.hasKey(KEY_REGISTRATION_CHANNELIMPORTANCE)) {
-            int channelImportance = config.getInt(KEY_REGISTRATION_CHANNELIMPORTANCE);
-            notificationHubUtil.setChannelImportance(reactContext, channelImportance);
-        }
-
-        if (config.hasKey(KEY_REGISTRATION_CHANNELSHOWBADGE)) {
-            boolean channelShowBadge = config.getBoolean(KEY_REGISTRATION_CHANNELSHOWBADGE);
-            notificationHubUtil.setChannelShowBadge(reactContext, channelShowBadge);
-        }
-
-        if (config.hasKey(KEY_REGISTRATION_CHANNELENABLELIGHTS)) {
-            boolean channelEnableLights = config.getBoolean(KEY_REGISTRATION_CHANNELENABLELIGHTS);
-            notificationHubUtil.setChannelEnableLights(reactContext, channelEnableLights);
-        }
-
-        if (config.hasKey(KEY_REGISTRATION_CHANNELENABLEVIBRATION)) {
-            boolean channelEnableVibration = config.getBoolean(KEY_REGISTRATION_CHANNELENABLEVIBRATION);
-            notificationHubUtil.setChannelEnableVibration(reactContext, channelEnableVibration);
-        }
-
-        String uuid = notificationHubUtil.getUUID(reactContext);
-        if (uuid == null) {
-            uuid = ReactNativeUtil.genUUID();
-            notificationHubUtil.setUUID(reactContext, uuid);
-        }
 
         GoogleApiAvailability apiAvailability = GoogleApiAvailability.getInstance();
         int resultCode = apiAvailability.isGooglePlayServicesAvailable(reactContext);
@@ -164,132 +97,20 @@ public class ReactNativeNotificationHubModule extends ReactContextBaseJavaModule
                                 getCurrentActivity(),
                                 apiAvailability,
                                 resultCode));
-                promise.reject(ERROR_PLAY_SERVICES, ERROR_PLAY_SERVICES_DISABLED);
+                promise.reject(ERROR_PLAY_SERVICES, "User must enable Google Play Services.");
             } else {
-                promise.reject(ERROR_PLAY_SERVICES, ERROR_PLAY_SERVICES_UNSUPPORTED);
+                promise.reject(ERROR_PLAY_SERVICES, "This device is not supported by Google Play Services.");
             }
             return;
         }
 
-        Intent intent = ReactNativeNotificationHubUtil.IntentFactory.createIntent(
-                reactContext, ReactNativeRegistrationIntentService.class);
-        ReactNativeRegistrationIntentService.enqueueWork(reactContext, intent);
-
-        WritableMap res = Arguments.createMap();
-        res.putString(KEY_PROMISE_RESOLVE_UUID, uuid);
-        promise.resolve(res);
-    }
-
-    @ReactMethod
-    public void registerTemplate(ReadableMap config, Promise promise) {
-        ReactNativeNotificationHubUtil notificationHubUtil = ReactNativeNotificationHubUtil.getInstance();
-        String connectionString = config.getString(KEY_REGISTRATION_CONNECTIONSTRING);
-        if (connectionString == null) {
-            promise.reject(ERROR_INVALID_ARGUMENTS, ERROR_INVALID_CONNECTION_STRING);
-            return;
-        }
-
-        String hubName = config.getString(KEY_REGISTRATION_HUBNAME);
-        if (hubName == null) {
-            promise.reject(ERROR_INVALID_ARGUMENTS, ERROR_INVALID_HUBNAME);
-            return;
-        }
-
-        String senderID = config.getString(KEY_REGISTRATION_SENDERID);
-        if (senderID == null) {
-            promise.reject(ERROR_INVALID_ARGUMENTS, ERROR_INVALID_SENDER_ID);
-            return;
-        }
-
-        String templateName = config.getString(KEY_REGISTRATION_TEMPLATENAME);
-        if (templateName == null) {
-            promise.reject(ERROR_INVALID_ARGUMENTS, ERROR_INVALID_TEMPLATE_NAME);
-            return;
-        }
-
-        String template = config.getString(KEY_REGISTRATION_TEMPLATE);
-        if (template == null) {
-            promise.reject(ERROR_INVALID_ARGUMENTS, ERROR_INVALID_TEMPLATE);
-            return;
-        }
-
-        String[] tags = null;
-        if (config.hasKey(KEY_REGISTRATION_TAGS) && !config.isNull(KEY_REGISTRATION_TAGS)) {
-            ReadableArray tagsJson = config.getArray(KEY_REGISTRATION_TAGS);
-            tags = new String[tagsJson.size()];
-            for (int i = 0; i < tagsJson.size(); ++i) {
-                tags[i] = tagsJson.getString(i);
-            }
-        }
-
-        ReactContext reactContext = getReactApplicationContext();
-        notificationHubUtil.setConnectionString(reactContext, connectionString);
-        notificationHubUtil.setHubName(reactContext, hubName);
-        notificationHubUtil.setSenderID(reactContext, senderID);
-        notificationHubUtil.setTemplateName(reactContext, templateName);
-        notificationHubUtil.setTemplate(reactContext, template);
-        notificationHubUtil.setTemplated(reactContext, true);
-        notificationHubUtil.setTags(reactContext, tags);
-
-        if (config.hasKey(KEY_REGISTRATION_CHANNELNAME)) {
-            String channelName = config.getString(KEY_REGISTRATION_CHANNELNAME);
-            notificationHubUtil.setChannelName(reactContext, channelName);
-        }
-
-        if (config.hasKey(KEY_REGISTRATION_CHANNELIMPORTANCE)) {
-            int channelImportance = config.getInt(KEY_REGISTRATION_CHANNELIMPORTANCE);
-            notificationHubUtil.setChannelImportance(reactContext, channelImportance);
-        }
-
-        if (config.hasKey(KEY_REGISTRATION_CHANNELSHOWBADGE)) {
-            boolean channelShowBadge = config.getBoolean(KEY_REGISTRATION_CHANNELSHOWBADGE);
-            notificationHubUtil.setChannelShowBadge(reactContext, channelShowBadge);
-        }
-
-        if (config.hasKey(KEY_REGISTRATION_CHANNELENABLELIGHTS)) {
-            boolean channelEnableLights = config.getBoolean(KEY_REGISTRATION_CHANNELENABLELIGHTS);
-            notificationHubUtil.setChannelEnableLights(reactContext, channelEnableLights);
-        }
-
-        if (config.hasKey(KEY_REGISTRATION_CHANNELENABLEVIBRATION)) {
-            boolean channelEnableVibration = config.getBoolean(KEY_REGISTRATION_CHANNELENABLEVIBRATION);
-            notificationHubUtil.setChannelEnableVibration(reactContext, channelEnableVibration);
-        }
-
-        String uuid = notificationHubUtil.getUUID(reactContext);
-        if (uuid == null) {
-            uuid = ReactNativeUtil.genUUID();
-            notificationHubUtil.setUUID(reactContext, uuid);
-        }
-
-        GoogleApiAvailability apiAvailability = GoogleApiAvailability.getInstance();
-        int resultCode = apiAvailability.isGooglePlayServicesAvailable(reactContext);
-        if (resultCode != ConnectionResult.SUCCESS) {
-            if (apiAvailability.isUserResolvableError(resultCode)) {
-                UiThreadUtil.runOnUiThread(
-                        new GoogleApiAvailabilityRunnable(
-                                getCurrentActivity(),
-                                apiAvailability,
-                                resultCode));
-                promise.reject(ERROR_PLAY_SERVICES, ERROR_PLAY_SERVICES_DISABLED);
-            } else {
-                promise.reject(ERROR_PLAY_SERVICES, ERROR_PLAY_SERVICES_UNSUPPORTED);
-            }
-            return;
-        }
-
-        Intent intent = ReactNativeNotificationHubUtil.IntentFactory.createIntent(
-                reactContext, ReactNativeRegistrationIntentService.class);
-        ReactNativeRegistrationIntentService.enqueueWork(reactContext, intent);
-
-        WritableMap res = Arguments.createMap();
-        res.putString(KEY_PROMISE_RESOLVE_UUID, uuid);
-        promise.resolve(res);
+        Intent intent = new Intent(reactContext, ReactNativeRegistrationIntentService.class);
+        reactContext.startService(intent);
     }
 
     @ReactMethod
     public void unregister(Promise promise) {
-        ReactNativeNotificationHubUtil notificationHubUtil = ReactNativeNotificationHubUtil.getInstance();
+        NotificationHubUtil notificationHubUtil = NotificationHubUtil.getInstance();
 
         ReactContext reactContext = getReactApplicationContext();
         String connectionString = notificationHubUtil.getConnectionString(reactContext);
@@ -297,122 +118,43 @@ public class ReactNativeNotificationHubModule extends ReactContextBaseJavaModule
         String registrationId = notificationHubUtil.getRegistrationID(reactContext);
 
         if (connectionString == null || hubName == null || registrationId == null) {
-            promise.reject(ERROR_NOT_REGISTERED, ERROR_NOT_REGISTERED_DESC);
-            return;
+            promise.reject(ERROR_NOT_REGISTERED, "No registration to Azure Notification Hub.");
         }
 
-        NotificationHub hub = ReactNativeUtil.createNotificationHub(hubName, connectionString, reactContext);
+        NotificationHub hub = new NotificationHub(hubName, connectionString, reactContext);
         try {
             hub.unregister();
             notificationHubUtil.setRegistrationID(reactContext, null);
-            notificationHubUtil.setUUID(reactContext, null);
-            promise.resolve(AZURE_NOTIFICATION_HUB_UNREGISTERED);
+            NotificationsManager.stopHandlingNotifications(reactContext);
         } catch (Exception e) {
             promise.reject(ERROR_NOTIFICATION_HUB, e);
         }
-    }
-
-    @ReactMethod
-    public void unregisterTemplate(String templateName, Promise promise) {
-        ReactNativeNotificationHubUtil notificationHubUtil = ReactNativeNotificationHubUtil.getInstance();
-
-        ReactContext reactContext = getReactApplicationContext();
-        String connectionString = notificationHubUtil.getConnectionString(reactContext);
-        String hubName = notificationHubUtil.getHubName(reactContext);
-        String registrationId = notificationHubUtil.getRegistrationID(reactContext);
-
-        if (connectionString == null || hubName == null || registrationId == null) {
-            promise.reject(ERROR_NOT_REGISTERED, ERROR_NOT_REGISTERED_DESC);
-            return;
-        }
-
-        NotificationHub hub = ReactNativeUtil.createNotificationHub(hubName, connectionString, reactContext);
-        try {
-            hub.unregisterTemplate(templateName);
-            notificationHubUtil.setRegistrationID(reactContext, null);
-            notificationHubUtil.setUUID(reactContext, null);
-            promise.resolve(AZURE_NOTIFICATION_HUB_UNREGISTERED);
-        } catch (Exception e) {
-            promise.reject(ERROR_NOTIFICATION_HUB, e);
-        }
-    }
-
-    @ReactMethod
-    public void getUUID(Boolean autoGen, Promise promise) {
-        ReactNativeNotificationHubUtil notificationHubUtil = ReactNativeNotificationHubUtil.getInstance();
-        ReactContext reactContext = getReactApplicationContext();
-        String uuid = notificationHubUtil.getUUID(reactContext);
-
-        if (uuid != null) {
-            promise.resolve(uuid);
-        } else if (autoGen) {
-            uuid = ReactNativeUtil.genUUID();
-            notificationHubUtil.setUUID(reactContext, uuid);
-            promise.resolve(uuid);
-        } else {
-            promise.reject(ERROR_GET_UUID, ERROR_NO_UUID_SET);
-        }
-    }
-
-    @ReactMethod
-    public void isNotificationEnabledOnOSLevel(Promise promise) {
-        ReactContext reactContext = getReactApplicationContext();
-        NotificationManagerCompat notificationManagerCompat = NotificationManagerCompat.from(reactContext);
-        boolean areNotificationsEnabled = notificationManagerCompat.areNotificationsEnabled();
-        promise.resolve(areNotificationsEnabled);
     }
 
     @Override
     public void onHostResume() {
-        setIsForeground(true);
-
         Activity activity = getCurrentActivity();
         if (activity != null) {
             Intent intent = activity.getIntent();
             if (intent != null) {
-                Bundle bundle = ReactNativeUtil.getBundleFromIntent(intent);
+                Bundle bundle = intent.getBundleExtra("notification");
                 if (bundle != null) {
-                    ReactNativeUtil.removeNotificationFromIntent(intent);
-                    bundle.putBoolean(KEY_REMOTE_NOTIFICATION_FOREGROUND, false);
-                    bundle.putBoolean(KEY_REMOTE_NOTIFICATION_USER_INTERACTION, true);
-                    bundle.putBoolean(KEY_REMOTE_NOTIFICATION_COLDSTART, true);
-                    ReactNativeNotificationsHandler.sendBroadcast(
-                            mReactContext, bundle, NOTIFICATION_DELAY_ON_START);
+                    new ReactNativeNotificationsHandler().sendBroadcast(mReactContext, bundle, NOTIFICATION_DELAY_ON_START);
                 }
             }
         }
     }
-
     @Override
-    public void onHostPause() {
-        setIsForeground(false);
-    }
-
+    public void onHostPause() {}
     @Override
-    public void onHostDestroy() {
-    }
-
-    @Override
-    public void onNewIntent(Intent intent) {
-        Bundle bundle = ReactNativeUtil.getBundleFromIntent(intent);
-        if (bundle != null) {
-            bundle.putBoolean(KEY_REMOTE_NOTIFICATION_FOREGROUND, false);
-            bundle.putBoolean(KEY_REMOTE_NOTIFICATION_USER_INTERACTION, true);
-            ReactNativeNotificationsHandler.sendBroadcast(
-                    mReactContext, bundle, NOTIFICATION_DELAY_ON_START);
-        }
-    }
-
-    @Override
-    public void onActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
-    }
-
+    public void onHostDestroy() {}
     public class LocalBroadcastReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (getIsForeground()) {
-                ReactNativeUtil.emitIntent(mReactContext, intent);
-            }
+            String event = intent.getStringExtra("event");
+            String data = intent.getStringExtra("data");
+            mReactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                    .emit(event, data);
         }
     }
 
