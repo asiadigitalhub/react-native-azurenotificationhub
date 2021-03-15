@@ -1,12 +1,42 @@
 {
-  "name": "react-native-azurenotificationhub",
-  "version": "0.9.5-Patched.1",
-  "description": "React Native module to support Azure Notification Hub push notifications on Android, iOS, and Windows.",
-  "main": "index.js",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/CatalystCode/react-native-azurenotificationhub.git"
+  "_from": "react-native-azurenotificationhub@^0.9.2",
+  "_id": "react-native-azurenotificationhub@0.9.5",
+  "_inBundle": false,
+  "_integrity": "sha512-LsgsLg2FhwVHcUWVkbiPc7lI8PYbK1NfOLU6mZlCtGAci5dK0L0Q76PgWW1aB5neCWxzWrKgIipv61BSwy+jkA==",
+  "_location": "/react-native-azurenotificationhub",
+  "_phantomChildren": {},
+  "_requested": {
+    "type": "range",
+    "registry": true,
+    "raw": "react-native-azurenotificationhub@^0.9.2",
+    "name": "react-native-azurenotificationhub",
+    "escapedName": "react-native-azurenotificationhub",
+    "rawSpec": "^0.9.2",
+    "saveSpec": null,
+    "fetchSpec": "^0.9.2"
   },
+  "_requiredBy": [
+    "/"
+  ],
+  "_resolved": "https://registry.npmjs.org/react-native-azurenotificationhub/-/react-native-azurenotificationhub-0.9.5.tgz",
+  "_shasum": "56f5ae9cb17221839390eb2090404b1383c1d60b",
+  "_spec": "react-native-azurenotificationhub@^0.9.2",
+  "_where": "/Users/trungtin.dang/Documents/project/FRNSW_new",
+  "author": {
+    "name": "rozele"
+  },
+  "bugs": {
+    "url": "https://github.com/CatalystCode/react-native-azurenotificationhub/issues"
+  },
+  "bundleDependencies": false,
+  "deprecated": false,
+  "description": "React Native module to support Azure Notification Hub push notifications on Android, iOS, and Windows.",
+  "devDependencies": {
+    "react": "^15.3.0",
+    "react-native": "^0.32.0",
+    "react-native-windows": "^0.32.0"
+  },
+  "homepage": "https://github.com/CatalystCode/react-native-azurenotificationhub#readme",
   "keywords": [
     "Azure",
     "React",
@@ -15,15 +45,12 @@
     "Notifications",
     "Hub"
   ],
-  "author": "rozele",
   "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/CatalystCode/react-native-azurenotificationhub/issues"
+  "main": "index.js",
+  "name": "react-native-azurenotificationhub",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CatalystCode/react-native-azurenotificationhub.git"
   },
-  "homepage": "https://github.com/CatalystCode/react-native-azurenotificationhub#readme",
-  "devDependencies": {
-    "react": "^15.3.0",
-    "react-native": "^0.32.0",
-    "react-native-windows": "^0.32.0"
-  }
+  "version": "0.9.5"
 }

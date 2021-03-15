@@ -28,10 +28,6 @@ public class ReactNativeFirebaseMessagingService extends FirebaseMessagingServic
                 builder.setName(notificationHubUtil.getChannelName(context));
             }
 
-            if (notificationHubUtil.hasChannelDescription(context)) {
-                builder.setDescription(notificationHubUtil.getChannelDescription(context));
-            }
-
             if (notificationHubUtil.hasChannelImportance(context)) {
                 builder.setImportance(notificationHubUtil.getChannelImportance(context));
             }
@@ -96,7 +92,8 @@ public class ReactNativeFirebaseMessagingService extends FirebaseMessagingServic
             bundle.putBoolean(KEY_REMOTE_NOTIFICATION_USER_INTERACTION, false);
             bundle.putBoolean(KEY_REMOTE_NOTIFICATION_COLDSTART, false);
         }
-        ReactNativeNotificationsHandler.sendNotification(this, bundle, notificationChannelID);
+         ReactNativeNotificationsHandler.sendNotification(this, bundle, notificationChannelID);
+
 
         ReactNativeNotificationsHandler.sendBroadcast(this, bundle, 0);
     }

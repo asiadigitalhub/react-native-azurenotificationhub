@@ -109,24 +109,12 @@ public class ReactNativeNotificationHubUtil {
         return getPref(context, KEY_FOR_PREFS_CHANNELNAME);
     }
 
-    public String getChannelDescription(Context context) {
-        return getPref(context, KEY_FOR_PREFS_CHANNELDESCRIPTION);
-    }
-
     public void setChannelName(Context context, String channelName) {
         setPref(context, KEY_FOR_PREFS_CHANNELNAME, channelName);
     }
 
-    public void setChannelDescription(Context context, String channelDesc) {
-        setPref(context, KEY_FOR_PREFS_CHANNELDESCRIPTION, channelDesc);
-    }
-
     public boolean hasChannelName(Context context) {
         return hasKey(context, KEY_FOR_PREFS_CHANNELNAME);
-    }
-
-    public boolean hasChannelDescription(Context context) {
-        return hasKey(context, KEY_FOR_PREFS_CHANNELDESCRIPTION);
     }
 
     public int getChannelImportance(Context context) {
