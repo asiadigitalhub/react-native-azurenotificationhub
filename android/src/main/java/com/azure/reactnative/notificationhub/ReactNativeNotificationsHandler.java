@@ -181,7 +181,7 @@ public final class ReactNativeNotificationsHandler {
 
                     int notificationID = bundle.getString(KEY_REMOTE_NOTIFICATION_ID).hashCode();
                     PendingIntent pendingIntent = PendingIntent.getActivity(context, notificationID, intent,
-                            PendingIntent.FLAG_UPDATE_CURRENT);
+                           PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
                     notificationBuilder.setContentIntent(pendingIntent);
 
                     if (!bundle.containsKey(KEY_REMOTE_NOTIFICATION_VIBRATE) || bundle.getBoolean(KEY_REMOTE_NOTIFICATION_VIBRATE)) {
